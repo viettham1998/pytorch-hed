@@ -143,16 +143,22 @@ def estimate(tenInput):
 ##########################################################
 
 if __name__ == '__main__':
-    # Lấy danh sách các tệp hình ảnh trong thư mục đầu vào
     input_image_files = [f for f in os.listdir(arguments_strIn) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp'))]
-
-    # Tạo và khởi chạy mạng một lần, sau đó sử dụng nó cho từng hình ảnh
     netNetwork = Network().cuda().eval()
 
-    for input_image_file in input_image_files:
-        input_image_path = os.path.join(arguments_strIn, input_image_file)
-        output_image_path = os.path.join(arguments_strOut, input_image_file)
+    batch_size = 512
+    for i in range(0, len(input_image_files), batch_size):
+        batch_files = input_image_files[i:i+batch_size]
+        batch_images = []
+        for input_image_file in batch_files:
+            input_image_path = os.path.join(arguments_strIn, input_image_file)
+            tenInput = torch.FloatTensor(numpy.ascontiguousarray(numpy.array(PIL.Image.open(input_image_path))[:, :, ::-1].transpose(2, 0, 1).astype(numpy.float32) * (1.0 / 255.0)))
+            batch_images.append(tenInput)
+        
+        tenInputs = torch.stack(batch_images)
+        tenOutputs = estimate(tenInputs)
 
-        tenInput = torch.FloatTensor(numpy.ascontiguousarray(numpy.array(PIL.Image.open(input_image_path))[:, :, ::-1].transpose(2, 0, 1).astype(numpy.float32) * (1.0 / 255.0)))
-        tenOutput = estimate(tenInput)
-        PIL.Image.fromarray((tenOutput.clip(0.0, 1.0).numpy().transpose(1, 2, 0)[:, :, 0] * 255.0).astype(numpy.uint8)).save(output_image_path)
+        for j, output_image_file in enumerate(batch_files):
+            output_image_path = os.path.join(arguments_strOut, output_image_file)
+            tenOutput = tenOutputs[j]
+            PIL.Image.fromarray((tenOutput.clip(0.0, 1.0).numpy().transpose(1, 2, 0)[:, :, 0] * 255.0).astype(numpy.uint8)).save(output_image_path)
